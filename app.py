@@ -1,4 +1,5 @@
 import email
+import hashlib
 import json
 from msilib.schema import ODBCAttribute
 from flask import Flask, jsonify, request
@@ -20,12 +21,12 @@ def hello_word():
 def sign_up():
 
     data = json.loads(request.data)
-    print(data.get('email'))
-    print(data['password'])
+    
+    password_hash = hashlib.sha256(data['password'].encode('utf-8')).hexdigest()
     
     doc = {
         'email' : data.get('email'),
-        'password' : data.get('password')
+        'password' : password_hash
     }
     
     db.user_signup.insert_one(doc)
