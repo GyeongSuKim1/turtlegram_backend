@@ -50,7 +50,7 @@ def sign_up():
         return jsonify({'mseege':'비밀번호를 8자리 이상 입력하시오'})
     
 # ㅡㅡㅡㅡㅡ 패스워드 해싱 ㅡㅡㅡㅡㅡ
-    password_hash = hashlib.sha256(password_receive.encode('utf-8')).hexdigest()
+    password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
 
     doc = {
         'email' : email,
@@ -61,7 +61,7 @@ def sign_up():
     print(doc)
     db.user_signup.insert_one(doc)
     print(doc)
-    return jsonify({'mseege':'저장완료'})
+    return jsonify({'mseege':'저장완료'}), 201
 
 
 
