@@ -109,7 +109,7 @@ def get_user_info():
     token = request.headers.get("Authorization")
     print(token)
     
-    user = jwt.decode(token, SECRET_KEY, algorithm=['HS256'])
+    user = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
     print (user)
     result = db.user_signup.find_one({
         '_id':ObjectId(user["id"])
@@ -117,7 +117,6 @@ def get_user_info():
     
     print(result)
     
-    return jsonify({'messge': 'success'})
-# , 'email': result['email']
+    return jsonify({'messge': 'success' , 'email': result['email']})
 if __name__ =='__main__':
     app.run('0.0.0.0', port=5000, debug=True)
