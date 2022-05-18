@@ -1,13 +1,11 @@
+from functools import wraps
 from bson import ObjectId
-from flask import Flask, request, jsonify
-import datetime
-import email
-import hashlib
+from flask import Flask, request, jsonify, abort
 import json
-from unittest import result
 from flask_cors import CORS
 from pymongo import MongoClient
-import jwt, datetime, hashlib
+import jwt, hashlib
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -17,9 +15,24 @@ db = client.dbsparta
 SECRET_KEY = 'gyeongsu'
 
 
+def authorize(f):
+    @wraps(f)
+    def decorated_function():
+        if not 'Authorization' in request.headers:
+            abort(401)
+        token = request.headers['Authorization']
+        try:
+            user = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        except:
+            abort(401)
+        return f(user)
+    return decorated_function
+
+
 @app.route("/")
-def hello_word():
-    return jsonify({'mseege':'success'})
+@authorize
+def hello_word(user):
+    return jsonify({'message':'success'})
 
 
 @app.route("/signup", methods=["POST"])
@@ -36,23 +49,23 @@ def sign_up():
     if '@' in email_receive:
         if email_receive.split('@')[1] in domain:
             if db.user_signup.find_one({'email':email_receive}):
-                return jsonify({'mseege':'존재하는 이메일'})
+                return jsonify({'message':'존재하는 이메일'})
             else:
                 email = email_receive
         else:
-            return jsonify({'mseege':'메일 주소 확인필요'})
+            return jsonify({'message':'메일 주소 확인필요'})
     elif email_receive == '':
-        return jsonify({'mseege':'아무것도 입력 안했네요'})
+        return jsonify({'message':'아무것도 입력 안했네요'})
     else: 
-        return jsonify({'mseege':'이메일 형식으로 확인 바람'})
+        return jsonify({'message':'이메일 형식으로 확인 바람'})
     
 # ㅡㅡㅡㅡㅡ 패스워드 ㅡㅡㅡㅡㅡ
     if password_receive == '':
-        return jsonify({'mseege':'비밀번호 입력해라'})
+        return jsonify({'message':'비밀번호 입력해라'})
     elif len(str(password_receive)) >= 8:
         password = password_receive
     else:     
-        return jsonify({'mseege':'비밀번호를 8자리 이상 입력하시오'})
+        return jsonify({'message':'비밀번호를 8자리 이상 입력하시오'})
     
 # ㅡㅡㅡㅡㅡ 패스워드 해싱 ㅡㅡㅡㅡㅡ
     password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
@@ -63,10 +76,8 @@ def sign_up():
     }
 
 # ㅡㅡㅡㅡㅡ db에 저장 ㅡㅡㅡㅡㅡ
-    print(doc)
     db.user_signup.insert_one(doc)
-    print(doc)
-    return jsonify({'mseege':'저장완료'}), 201
+    return jsonify({'message':'저장완료'}), 201
 
 
 @app.route("/login", methods=["POST"])
@@ -83,40 +94,59 @@ def log_in():
         'email' : email,
         'password' : password_hash           
     })
-    print(result)
 
     if result is None:
-        return jsonify({'messge': '일치하지않음'}), 401
+        return jsonify({'message': '일치하지않음'}), 401
 
     payload = {
         'id': str(result["_id"]),
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=60*60*24)
+        'exp': datetime.utcnow() + timedelta(seconds=60*60*24)
     }
 
     token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
-    print(token)
-    return jsonify({'messge': 'success', 'token': token})
+    return jsonify({'message': 'success', 'token': token})
 
-
-#     # else:
-#     #     return jsonify({'result': 'fail', 'msg': '아이디/비밀번호가 일치하지 않습니다.'})
-    
-#     # print(data.get('email'))
-#     # print(data["password"])
 
 @app.route("/getuserinfo", methods=["GET"])
-def get_user_info():
-    token = request.headers.get("Authorization")
-    print(token)
-    
-    user = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-    print (user)
+@authorize
+def get_user_info(user):
     result = db.user_signup.find_one({
         '_id':ObjectId(user["id"])
     })
     
-    print(result)
+    return jsonify({'message': 'success' , 'email': result['email']})
+
+
+@app.route("/article", methods=["POST"])
+@authorize
+def post_article(user):
+    data = json.loads(request.data)
+    print('125 번', data)
     
-    return jsonify({'messge': 'success' , 'email': result['email']})
+    db_user = db.user_signup.find_one({'_id':ObjectId(user.get('id'))})
+    
+    now = datetime.now().strftime("%H:%M:%S")
+    
+    doc = {
+        'title' : data.get('title',None),
+        'content' : data.get('content',None),
+        'user' : user['id'],
+        'user_email' : db_user['email'],
+        'time' : now,
+    }
+    
+    db.article.insert_one(doc)    
+    return jsonify({'message':'저장 완료'})
+
+
+@app.route("/article", methods=["GET"])
+def get_article():
+    articles = list(db.article.find())
+    
+    for article in articles:
+        article["_id"] = str(article["_id"])
+        
+    return jsonify({'message': 'success', "articles": articles})
+
 if __name__ =='__main__':
     app.run('0.0.0.0', port=5000, debug=True)
