@@ -1,15 +1,20 @@
+from bson import ObjectId
+from flask import Flask, request, jsonify
+import datetime
 import email
 import hashlib
 import json
-from msilib.schema import ODBCAttribute
-from flask import Flask, jsonify, request
+from unittest import result
 from flask_cors import CORS
 from pymongo import MongoClient
+import jwt, datetime, hashlib
 
 app = Flask(__name__)
+
 cors = CORS(app, resources={r'*': {'origins': '*'}})
 client = MongoClient('localhost', 27017)
 db = client.dbsparta
+SECRET_KEY = 'gyeongsu'
 
 
 @app.route("/")
@@ -64,6 +69,55 @@ def sign_up():
     return jsonify({'mseege':'저장완료'}), 201
 
 
+@app.route("/login", methods=["POST"])
+def log_in():
 
+    data = json.loads(request.data)
+    email = data.get("email")
+    password = data.get("password")
+    
+    # ㅡㅡㅡㅡㅡ 비밀번호 해싱 ㅡㅡㅡㅡㅡ
+    password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
+    
+    result = db.user_signup.find_one({
+        'email' : email,
+        'password' : password_hash           
+    })
+    print(result)
+
+    if result is None:
+        return jsonify({'messge': '일치하지않음'}), 401
+
+    payload = {
+        'id': str(result["_id"]),
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=60*60*24)
+    }
+
+    token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
+    print(token)
+    return jsonify({'messge': 'success', 'token': token})
+
+
+#     # else:
+#     #     return jsonify({'result': 'fail', 'msg': '아이디/비밀번호가 일치하지 않습니다.'})
+    
+#     # print(data.get('email'))
+#     # print(data["password"])
+
+@app.route("/getuserinfo", methods=["GET"])
+def get_user_info():
+    token = request.headers.get("Authorization")
+    print(token)
+    
+    user = jwt.decode(token, SECRET_KEY, algorithm=['HS256'])
+    print (user)
+    result = db.user_signup.find_one({
+        '_id':ObjectId(user["id"])
+    })
+    
+    print(result)
+    
+    return jsonify({'messge': 'success'})
+# , 'email': result['email']
 if __name__ =='__main__':
     app.run('0.0.0.0', port=5000, debug=True)
